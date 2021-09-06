@@ -1,0 +1,8 @@
+[package]
+name = "complexity-theory"
+version = "0.1"
+lean_version = "leanprover-community/lean:3.32.1"
+path = "src"
+
+[dependencies]
+mathlib = {git = "https://github.com/leanprover-community/mathlib", rev = "9df3f0d449bc7fff626c44ac7f56b5bcbcefff4a"}
