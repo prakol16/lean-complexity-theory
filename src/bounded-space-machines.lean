@@ -42,11 +42,9 @@ lemma sum_bound {α : Type} [fintype α] (f : α → ℕ) (b : ℕ) (f_bound: �
   : ∑ a : α, f a ≤ (fintype.card α) * b := begin
     have : ∑ a : α, f a = (multiset.map f finset.univ.val).sum := by refl,
     rw this,
-    have : fintype.card α = (multiset.map f finset.univ.val).card := by begin
-      have h := multiset.card_map f finset.univ.val,
-      rw h,
-      refl,
-    end,
+    have : fintype.card α = (multiset.map f finset.univ.val).card := by {
+      rw multiset.card_map f finset.univ.val, refl,
+    },
     rw this,
     apply multiset.sum_le_card_nsmul,
     finish,
@@ -57,11 +55,9 @@ lemma prod_bound {α : Type*} [fintype α] (f : α → ℕ) (b : ℕ) (f_bound: 
   : ∏ a : α, f a ≤ b ^ (fintype.card α) := begin
     have : ∏ a : α, f a  = (multiset.map f finset.univ.val).prod := by refl,
     rw this,
-    have : fintype.card α = (multiset.map f finset.univ.val).card := by begin
-      have h := multiset.card_map f finset.univ.val,
-      rw h,
-      refl,
-    end,
+    have : fintype.card α = (multiset.map f finset.univ.val).card := by {
+      rw (multiset.card_map f finset.univ.val), refl, 
+    },
     rw this,
     apply multiset.prod_le_of_forall_le,
     finish,
@@ -86,21 +82,14 @@ begin
 end
 
 
-lemma vector.to_list_of_heq {n₁ n₂ α} {a₁ : vector α n₁} {a₂ : vector α n₂}
-  (hn : n₁ = n₂) (ha : a₁ == a₂) : a₁.to_list = a₂.to_list :=
-by { congr, assumption, assumption, }
-
-lemma vector.heq {α : Type*} { m n : ℕ } {v1 : vector α m} {v2 : vector α n} 
+lemma vector.heq {α : Type*} {m n : ℕ} {v1 : vector α m} {v2 : vector α n}
   (leq : v1.to_list = v2.to_list) (H : m = n) : v1 == v2 :=
 begin
-  have : (vector α m) = (vector α n) := by { rw H, },
-  let v1' := cast this v1,
-  have v1_eq_v1' : v1 == v1' := (cast_heq this v1).symm,
-  have v1_list_eq_v1'_list := vector.to_list_of_heq H v1_eq_v1',
-  rw v1_list_eq_v1'_list at leq,
-  have v1'_eq_v2 : v1' = v2 := vector.to_list_injective leq,
-  exact heq_of_heq_of_eq v1_eq_v1' v1'_eq_v2,
+  subst H,
+  rw heq_iff_eq,
+  exact vector.eq v1 v2 leq,
 end
+
 
 section
 /-
@@ -125,7 +114,7 @@ def cfg.mk.inj := @TM2.cfg.mk.inj
 @[reducible] def stacks := Π k : K, list (Γ k)
 
 -- Extensionality for TM2 configurations
--- There should definitely be a better way to prove this
+-- There should definitely be a better way to do this
 theorem cfg_eq : ∀(c1 c2 : cfg), (cfg.l c1 = cfg.l c2) → (cfg.var c1 = cfg.var c2)
    → (cfg.stk c1 = cfg.stk c2) → c1 = c2
   | ⟨l, var, stk⟩ ⟨l', var', stk'⟩ rf rf' rf'' :=
@@ -164,8 +153,8 @@ lemma bounded_stacks_to_stacks_preserves_bound (b_stk : bounded_stacks)
   : (∀k : K, list.length (bounded_stacks_to_stacks b_stk k) < M) :=
 begin
   intro k,
-  suffices : ((vector.to_list (b_stk k).2).length < M),
-  exact this,
+  -- Unfold the definition
+  suffices : ((vector.to_list (b_stk k).2).length < M), { exact this, },
   rw vector.to_list_length (b_stk k).2,
   exact fin.is_lt (b_stk k).1,
 end
@@ -193,11 +182,10 @@ end
 lemma bounded_stacks_to_stacks.sur (stk : stacks) (bound : ∀k : K, (stk k).length < M)
   : (∃b : bounded_stacks, bounded_stacks_to_stacks b = stk) :=
 begin
-  let b : bounded_stacks := λ k : K, ⟨
+  use λ k : K, ⟨
     (⟨(stk k).length, bound k⟩ : fin M),
     (⟨stk k, rfl⟩ : vector (Γ k) (stk k).length)
   ⟩,
-  use b,
   refl,
 end
 
@@ -236,16 +224,16 @@ lemma bounded_cfgs_to_cfgs.sur (c : cfg) (bound : bounded_cfg' c)
 begin
   cases (bounded_stacks_to_stacks.sur (cfg.stk c) bound) with bstk bstk_h,
   use (cfg.l c, cfg.var c, bstk),
-  have : bounded_cfg_to_cfg (cfg.l c, cfg.var c, bstk) = cfg.mk (cfg.l c) (cfg.var c) (bounded_stacks_to_stacks bstk) := by refl,
+  have : bounded_cfg_to_cfg (cfg.l c, cfg.var c, bstk)
+       = cfg.mk (cfg.l c) (cfg.var c) (bounded_stacks_to_stacks bstk) := by refl,
   rw bstk_h at this,
   rw this,
   apply cfg_eq,
-  repeat {split},
+  repeat {refl},
 end
 
 -- The maximum alphabet size
-def max_alphabet_size : ℕ := (finset.fold max 0 (λ k : K, fintype.card (Γ k))
- (@finset.univ K _))
+def max_alphabet_size : ℕ := (finset.fold max 0 (λ k : K, fintype.card (Γ k)) (@finset.univ K _))
 
 lemma max_alphabet_max : ∀k : K, fintype.card (Γ k) ≤ max_alphabet_size :=
 begin
@@ -266,6 +254,8 @@ def num_tapes : ℕ := fintype.card K
 def C : ℕ := 2 * num_tapes * nat.clog 2 (max_alphabet_size + 2)
 def K_val : ℕ := 2^num_tapes
 
+-- Give an upper bound on the number of bounded stacks
+-- of the form O(2^O(M)) (notice `C` and `K_val` don't depend on `M`)
 theorem bounded_stacks_size : fintype.card bounded_stacks ≤ K_val * 2^(C*M) :=
 begin
   simp,
@@ -293,8 +283,7 @@ begin
     exact ub k,
   end,
 
-  -- More useful upper bound
-  -- Uses a bunch of trivial inequalities
+  -- More useful upper bound for the sum
   have ub_sum' : ∀ k : K, (∑ (m : fin M), (fintype.card (Γ k))^(↑m : ℕ) ≤ 
                             2 * (max_alphabet_size + 2) ^ (2*M)) :=
   begin
@@ -327,20 +316,16 @@ begin
       have : 1 < 2 := by simp,
       rw nat.le_pow_iff_clog_le this, 
     }
-    ... = 2^num_tapes * 2^(2 * num_tapes * nat.clog 2 (max_alphabet_size + 2) * M) : by {
-      simp, rw ← pow_mul, left,
-      have : 2 ≤ 2 := by refl,
-      apply congr, refl, ring,
-    }
+    ... = 2^num_tapes * 2^(2 * num_tapes * nat.clog 2 (max_alphabet_size + 2) * M) : by ring_exp
     ... = K_val * 2^(C * M) : by refl,
 end
 
--- Bounded (standard) cfgs, which are isomorphic to bounded_Cfg, except
+-- Bounded (standard) cfgs, which are isomorphic to bounded_cfg, except
 -- that the latter is a finite type
 def all_bounded_cfgs : finset cfg := 
       finset.map ⟨bounded_cfg_to_cfg, bounded_cfg_to_cfg.inj⟩ finset.univ
 
-lemma all_bounded_cfgs_contains_all : ∀c : cfg, c ∈ all_bounded_cfgs ↔ bounded_cfg' c :=
+lemma all_bounded_configs_iff_bounded : ∀c : cfg, c ∈ all_bounded_cfgs ↔ bounded_cfg' c :=
 begin
   have all_bounded_cfgs_def 
     : all_bounded_cfgs = finset.map ⟨bounded_cfg_to_cfg, bounded_cfg_to_cfg.inj⟩ finset.univ := rfl,
@@ -365,7 +350,6 @@ end
 
 lemma all_bounded_cfgs_size_eq_bounded_cfgs : all_bounded_cfgs.card = fintype.card bounded_cfg :=
 begin
-
   have all_bounded_cfgs_def 
     : all_bounded_cfgs = finset.map ⟨bounded_cfg_to_cfg, bounded_cfg_to_cfg.inj⟩ finset.univ := rfl,
   rw all_bounded_cfgs_def,
@@ -398,3 +382,7 @@ theorem cfg_space_upper_bound_finitely_many : ∃ C K_val : ℕ, ∀M : ℕ,
   end
 end
 
+/-
+  TODO: If a TM is bounded by the number of configurations, it must halt in a certain
+  number of steps if it halts at all.
+-/
