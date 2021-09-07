@@ -1,4 +1,5 @@
 import computability.turing_machine
+import computability.tm_computable
 import tactic
 import data.fintype.basic
 import data.fintype.card
@@ -6,7 +7,6 @@ import data.pi
 import data.nat.pow
 import data.nat.log
 
-open turing
 open_locale big_operators
 
 -- set_option pp.implicit true
@@ -90,8 +90,8 @@ begin
   exact vector.eq v1 v2 leq,
 end
 
+section prelim_definitions
 
-section
 /-
   In this section, we fix a language for our TM2, i.e.
   a fixed index set for the stacks K, type of stack elements Γ, type of function labels Λ
@@ -102,6 +102,7 @@ parameters (Γ : K → Type*) [Π k, fintype (Γ k)] -- Type of stack elements
 parameters (Λ : Type*) [fintype Λ] -- Type of function labels
 parameters (σ : Type*) [fintype σ] -- Type of variable settings
 
+open turing
 
 def cfg := @TM2.cfg K _ Γ Λ σ
 -- Aliases for all the methods of `cfg`
@@ -366,23 +367,50 @@ There are only O(2^O(M)) such possible configurations, so |f| <= O(2^O(M))
 -/
 theorem cfg_space_upper_bound_finitely_many : ∃ C K_val : ℕ, ∀M : ℕ, 
     (all_bounded_cfgs M).card ≤ K_val * 2^(C * M):=
-  begin
-    use C,
-    use (fintype.card (option Λ)) * (fintype.card σ) * K_val,
-    intro M,
-    rw all_bounded_cfgs_size_eq_bounded_cfgs M,
-    repeat {rw fintype.card_prod},
-    rw fintype.card_option,
-    exact calc
-      (fintype.card Λ + 1) * (fintype.card σ * fintype.card (bounded_stacks M))
-        =  (fintype.card Λ + 1) * (fintype.card σ * fintype.card (bounded_stacks M)) : by ring
-    ... ≤ (fintype.card Λ + 1) * (fintype.card σ * (K_val * 2 ^ (C * M))) :
-      nat.mul_le_mul_left (fintype.card Λ + 1) (nat.mul_le_mul_left (fintype.card σ) (bounded_stacks_size M))
-    ... = (fintype.card Λ + 1) * fintype.card σ * K_val * 2 ^ (C * M) : by ring,
-  end
+begin
+  use C,
+  use (fintype.card (option Λ)) * (fintype.card σ) * K_val,
+  intro M,
+  rw all_bounded_cfgs_size_eq_bounded_cfgs M,
+  repeat {rw fintype.card_prod},
+  rw fintype.card_option,
+  exact calc
+    (fintype.card Λ + 1) * (fintype.card σ * fintype.card (bounded_stacks M))
+      =  (fintype.card Λ + 1) * (fintype.card σ * fintype.card (bounded_stacks M)) : by ring
+  ... ≤ (fintype.card Λ + 1) * (fintype.card σ * (K_val * 2 ^ (C * M))) :
+    nat.mul_le_mul_left (fintype.card Λ + 1) (nat.mul_le_mul_left (fintype.card σ) (bounded_stacks_size M))
+  ... = (fintype.card Λ + 1) * fintype.card σ * K_val * 2 ^ (C * M) : by ring,
 end
 
-/-
-  TODO: If a TM is bounded by the number of configurations, it must halt in a certain
-  number of steps if it halts at all.
--/
+end prelim_definitions
+
+-- TM2 with finite alphabet
+structure fin_tm2' extends turing.fin_tm2 :=
+  [Γ_fin: ∀k : K, fintype (Γ k)]
+ 
+#check @turing.TM2.cfg.mk
+
+section tm_definitions
+parameter (tm : fin_tm2')
+
+def cfg' := @turing.TM2.cfg tm.K _ tm.Γ tm.Λ tm.σ
+def cfg'.mk := @turing.TM2.cfg.mk tm.K _ tm.Γ tm.Λ tm.σ
+
+def option_cfg_bounded (M : ℕ) :  option cfg' → Prop
+  | none      := true
+  | (some c') := @bounded_cfg' tm.K tm.K_decidable_eq tm.K_fin tm.Γ
+                             tm.Γ_fin tm.Λ tm.Λ_fin tm.σ tm.σ_fin M c'
+
+structure evals_to_in_space (f : cfg' → option cfg') (a : cfg') (b : option cfg') (m : ℕ)
+  extends turing.evals_to f a b :=
+  (bounded_memory : ∀n ≤ [steps], (option_cfg_bounded m ((flip bind f)^[steps] a))) 
+
+
+-- TODO: evals_to_in_space M --> evals_to_in_time O(2^O(M))
+-- (hence we can prove L ⊆ P and PSPACE ⊆ EXP)
+
+-- TODO: evals_to_in_time M --> evals_to_in_space M
+-- (hence P ⊆ PSPACE)
+
+end tm_definitions
+
